@@ -1,0 +1,13 @@
+.square {
+    height: 20px;
+    width: 20px;
+    border: 1px solid #333;
+}
+
+.food {
+    background-color: green;
+}
+
+.snake {
+    background-color: red;
+}
