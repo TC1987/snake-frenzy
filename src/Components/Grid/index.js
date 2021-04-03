@@ -179,6 +179,19 @@ const isGameOver = (grid, snake) => {
 
 const getStartingPoint = () => [Math.floor(Math.random() * ROWS), Math.floor(Math.random() * COLS)];
 
+const getLevel = length => {
+    switch (true) {
+        case length > 30:
+            return 'an expert';
+        case length > 20:
+            return 'a seasoned'
+        case length > 10:
+            return 'an intermediate'
+        default:
+            return 'a beginner';
+    }
+}
+
 const Grid = () => {
     const [gameOver, setGameOver] = useState(false);
     const [snake, setSnake] = useState([getStartingPoint()]);
@@ -272,32 +285,38 @@ const Grid = () => {
     }, [running, food]);
 
     return (
-        <div className='container'>
-            { gameOver && (
-                <div className='game-over'>
-                    <h1>Game Over</h1>
-                    <p>{`Your snake was ${snake.length} ${snake.length === 1 ? 'block' : 'blocks'} long!`}</p>
-                    <div className='restart' onClick={resetGame}><span>Restart</span></div>
+        <div className='app'>
+            <div className='container'>
+                <h1 className='title'>&#128013; Frenzy</h1>
+                <h3>Instructions:</h3>
+                <ul>
+                    <li>1. Place walls by clicking on any square or if you're feeling adventurous, by clicking <span className='random-walls-text'onClick={handleRandomButtonClick}>here</span><span className='hand-emoji'>&#128072;</span></li>
+                    <li>2. Eat as much as you can without hitting a wall or eating yourself</li>
+                    <li>3. Press any arrow key on your keyboard to get started</li>
+                </ul>
+                { gameOver && (
+                    <div className='game-over'>
+                        <h1>Ouch! You are dead</h1>
+                        {/* <p>{`A snake ${snake.length} ${snake.length === 1 ? 'block' : 'blocks'} long makes you ${getLevel(snake.length)} snake`}</p> */}
+                        <div className='restart' onClick={resetGame}><span>Try Again</span></div>
+                    </div>
+                )}
+                <div className='grid' style={{ display: 'grid', gridTemplateColumns: `repeat(${ROWS}, 20px)`}}>
+                    {grid.map((row, i) => {
+                        return (
+                            <div key={`${i + GAME_SPEED}`}>
+                                {row.map((_, j) => (
+                                    <div
+                                        key={`${i + KEY_OFFSET}-${j + KEY_OFFSET}`}
+                                        className={`square ${getSquareType(grid[i][j])}`}
+                                        onClick={handleSquareClick(i, j)}
+                                    />
+                                ))}    
+                            </div>
+                        )
+                    })}
                 </div>
-            )}
-            <div className='grid' style={{ display: 'grid', gridTemplateColumns: `repeat(${ROWS}, 20px)`}}>
-                {grid.map((row, i) => {
-                    return (
-                        <div key={`${i + GAME_SPEED}`}>
-                            {row.map((_, j) => (
-                                <div
-                                    key={`${i + KEY_OFFSET}-${j + KEY_OFFSET}`}
-                                    className={`square ${getSquareType(grid[i][j])}`}
-                                    onClick={handleSquareClick(i, j)}
-                                />
-                            ))}    
-                        </div>
-                    )
-                })}
             </div>
-            <button onClick={handleRandomButtonClick}>
-                Add Random Walls
-            </button>
         </div>
     )
 }
