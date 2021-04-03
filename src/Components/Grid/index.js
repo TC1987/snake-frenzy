@@ -1,17 +1,21 @@
 import React, { useEffect, useState, useMemo } from 'react';
+import produce, {enableMapSet} from 'immer';
 
 import './style.css';
 
+enableMapSet();
+
 const ROWS = 40;
 const COLS = 40;
-const GAME_SPEED = 10;
+const GAME_SPEED = 0;
 const KEY_OFFSET = GAME_SPEED;
 const FOOD_SPEED = GAME_SPEED;
 
 const SQUARE_ENUM = {
     BLANK: 0,
     SNAKE: 1,
-    FOOD: 2
+    FOOD: 2,
+    WALL: 3
 }
 
 const DIRECTION_ENUM = {
@@ -28,14 +32,26 @@ const KEYPRESS_ENUM = {
     LEFT: 37
 }
 
-const VALID_KEYPRESS_LIST = [KEYPRESS_ENUM.UP, KEYPRESS_ENUM.RIGHT, KEYPRESS_ENUM.DOWN, KEYPRESS_ENUM.LEFT];
-
-const createDefaultGrid = _ => {
-    return new Array(ROWS).fill(null).map(_ => new Array(COLS).fill(SQUARE_ENUM.BLANK));
+const getSquareType = squareValue => {
+    switch (squareValue) {
+        case SQUARE_ENUM.BLANK:
+            return '';
+        case SQUARE_ENUM.SNAKE:
+            return 'snake';
+        case SQUARE_ENUM.FOOD:
+            return 'food';
+        case SQUARE_ENUM.WALL:
+            return 'wall';
+        default:
+            return '';
+    }
 }
 
-const moveSnake = (snake, direction) => {
-    const newPositions = [];
+const VALID_KEYPRESS_LIST = [KEYPRESS_ENUM.UP, KEYPRESS_ENUM.RIGHT, KEYPRESS_ENUM.DOWN, KEYPRESS_ENUM.LEFT];
+
+const createDefaultGrid = _ => new Array(ROWS).fill(null).map(_ => new Array(COLS).fill(SQUARE_ENUM.BLANK));
+
+const getNewHeadLocation = (snake, direction) => {
     const [x, y] = snake[0];
     let newX;
     let newY;
@@ -67,29 +83,42 @@ const moveSnake = (snake, direction) => {
     newY = newY < 0 ? COLS - 1 : newY;
     newY = newY >= COLS ? 0 : newY;
 
-    newPositions.push([newX, newY], ...snake);
-    newPositions.pop();
+    return [newX, newY];
+}
+
+const updateSnake = (snake, direction, food) => {
+    const newPositions = [];
+    const newHeadPosition = getNewHeadLocation(snake, direction);    
+
+    newPositions.push(newHeadPosition, ...snake);
+    
+    const removedTail = newPositions.pop();
+    const [x, y] = newHeadPosition;
+
+    for (const [i, j] of food) {
+        if (x === i && y === j) {
+            newPositions.push(removedTail);
+            break;       
+        }
+    }
 
     return newPositions;
 }
 
-const growSnake = (snake, food) => {
-    const newBodyPieces = [];
-    const foodSpots = [];
-    const snakeHead = snake[0];
+const updateFood = (snake, food) => {
+    const newPositions = [];
+    const [x, y] = snake[0];
 
     for (const [i, j] of food) {
-        if (snakeHead[0] === i && snakeHead[1] === j) {
-            newBodyPieces.push([i, j]);
-        } else {
-            foodSpots.push([i, j]);
+        if (x !== i || y !== j) {
+            newPositions.push([i, j]);
         }
     }
 
-    return [newBodyPieces, foodSpots];
+    return newPositions;
 }
 
-const updateBoard = (snake, food) => {
+const updateBoard = (snake, food, wall) => {
     const newBoard = createDefaultGrid();
 
     for (const [i, j] of food) {
@@ -100,14 +129,19 @@ const updateBoard = (snake, food) => {
         newBoard[i][j] = SQUARE_ENUM.SNAKE;
     }
 
+    for (const value of wall.values()) {
+        const [i, j] = value.split('#');
+        newBoard[i][j] = SQUARE_ENUM.WALL;
+    }
+
     return newBoard;
 }
 
-const updateGame = (snake, direction, food) => {
-    const [newBodyPieces, updatedFoodSpots] = growSnake(snake, food);
-    const updatedSnake = [...moveSnake(snake, direction), ...newBodyPieces];
-    const updatedBoard = updateBoard(updatedSnake, food);
-    return [updatedSnake, updatedBoard, updatedFoodSpots];
+const updateGame = (snake, direction, food, wall) => {
+    const updatedSnake = updateSnake(snake, direction, food);
+    const updatedFood = updateFood(snake, food);
+    const updatedBoard = updateBoard(updatedSnake, food, wall);
+    return [updatedSnake, updatedFood, updatedBoard];
 }
 
 const handleKeyPress = (setRunning, setDirection) => e => {
@@ -131,41 +165,68 @@ const handleKeyPress = (setRunning, setDirection) => e => {
     }
 }
 
-const getSquareType = squareValue => {
-    switch (squareValue) {
-        case SQUARE_ENUM.BLANK:
-            return '';
-        case SQUARE_ENUM.SNAKE:
-            return 'snake';
-        case SQUARE_ENUM.FOOD:
-            return 'food';
-        default:
-            return '';
-    }
-}
-
-const isGameOver = snake => {
+const isGameOver = (grid, snake) => {
     const seenBodyPieces = new Set();
+    const [x, y] = snake[0];
 
     for (const [x, y] of snake) {
         if (seenBodyPieces.has(`${x}#${y}`)) return true;
         seenBodyPieces.add(`${x}#${y}`);
     }
 
-    return false;
+    return grid[x][y] === SQUARE_ENUM.WALL;
 }
 
-const getSquare = (grid, i, j) => <div key={`${i + KEY_OFFSET}-${j + KEY_OFFSET}`} className={`square ${getSquareType(grid[i][j])}`} />
+const getStartingPoint = () => [Math.floor(Math.random() * ROWS), Math.floor(Math.random() * COLS)];
 
 const Grid = () => {
-    const startingPoint = useMemo(() => ([Math.floor(Math.random() * ROWS), Math.floor(Math.random() * COLS)]), []);
-
-    const [snake, setSnake] = useState([startingPoint]);
+    const [gameOver, setGameOver] = useState(false);
+    const [snake, setSnake] = useState([getStartingPoint()]);
     const [food, setFood] = useState([]);
-    const [grid, setGrid] = useState(updateBoard(snake, food));
+    const [wall, setWall] = useState(new Set());
+    const [grid, setGrid] = useState(updateBoard(snake, food, wall));
     const [running, setRunning] = useState(false);
     const [direction, setDirection] = useState(null);
-    const [gameOver, setGameOver] = useState(false);
+
+    const resetGame = () => {
+        setSnake([getStartingPoint()]);
+        setFood([]);
+        setWall(new Set());
+        setDirection(null);
+        setGameOver(false);        
+    }
+
+    const handleSquareClick = (i, j) => _ => {
+        const updatedWallList = produce(wall, wallCopy => {
+            if (wallCopy.has(`${i}#${j}`)) {
+                wallCopy.delete(`${i}#${j}`);
+            } else {
+                wallCopy.add(`${i}#${j}`);
+            }
+        });
+
+        setWall(updatedWallList);
+        const updatedBoard = updateBoard(snake, food, updatedWallList);
+        setGrid(updatedBoard);
+    }
+
+    const handleRandomButtonClick = () => {
+        const wallList = new Set();
+
+        for (let i = 0; i < ROWS; i++) {
+            const randomXCoord = Math.floor(Math.random() * ROWS);
+            const randomYCoord = Math.floor(Math.random() * COLS);
+            wallList.add(`${randomXCoord}#${randomYCoord}`);
+        }
+
+        setWall(wallList);
+        const updatedBoard = updateBoard(snake, food, wallList);
+        setGrid(updatedBoard);
+    }
+
+    useEffect(() => {
+        setGrid(updateBoard(snake, food, wall));
+    }, [gameOver])
 
     useEffect(() => {
         const moveHandler = handleKeyPress(setRunning, setDirection);
@@ -174,22 +235,22 @@ const Grid = () => {
     }, []);
 
     useEffect(() => {
-        if (isGameOver(snake)) {
+        if (isGameOver(grid, snake)) {
             setRunning(false);
             setGameOver(true);
         }
         
         if (running) {
             const id = setInterval(() => {
-                const [updatedSnake, updatedBoard, updatedFoodSpots] = updateGame(snake, direction, food);
+                const [updatedSnake, updatedFood, updatedBoard] = updateGame(snake, direction, food, wall);
                 setSnake(updatedSnake);
+                setFood(updatedFood);
                 setGrid(updatedBoard);
-                setFood(updatedFoodSpots);
             }, GAME_SPEED);
 
             return () => clearInterval(id);
         }
-    }, [snake, grid, direction, running, food]);
+    }, [snake, grid, direction, running, food, wall]);
 
     useEffect(() => {
         if (running) {
@@ -208,20 +269,36 @@ const Grid = () => {
 
             return () => clearInterval(id);
         }
-    }, [running, food])
+    }, [running, food]);
 
     return (
-        <>
+        <div className='container'>
+            { gameOver && (
+                <div className='game-over'>
+                    <h1>Game Over</h1>
+                    <p>{`Your snake was ${snake.length} ${snake.length === 1 ? 'block' : 'blocks'} long!`}</p>
+                    <div className='restart' onClick={resetGame}><span>Restart</span></div>
+                </div>
+            )}
             <div className='grid' style={{ display: 'grid', gridTemplateColumns: `repeat(${ROWS}, 20px)`}}>
                 {grid.map((row, i) => {
                     return (
                         <div key={`${i + GAME_SPEED}`}>
-                            {row.map((_, j) => getSquare(grid, i, j))}    
+                            {row.map((_, j) => (
+                                <div
+                                    key={`${i + KEY_OFFSET}-${j + KEY_OFFSET}`}
+                                    className={`square ${getSquareType(grid[i][j])}`}
+                                    onClick={handleSquareClick(i, j)}
+                                />
+                            ))}    
                         </div>
                     )
                 })}
             </div>
-        </>
+            <button onClick={handleRandomButtonClick}>
+                Add Random Walls
+            </button>
+        </div>
     )
 }
 
