@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState } from 'react';
 import produce, {enableMapSet} from 'immer';
 
 import './style.css';
@@ -179,18 +179,18 @@ const isGameOver = (grid, snake) => {
 
 const getStartingPoint = () => [Math.floor(Math.random() * ROWS), Math.floor(Math.random() * COLS)];
 
-const getLevel = length => {
-    switch (true) {
-        case length > 30:
-            return 'an expert';
-        case length > 20:
-            return 'a seasoned'
-        case length > 10:
-            return 'an intermediate'
-        default:
-            return 'a beginner';
-    }
-}
+// const getLevel = length => {
+//     switch (true) {
+//         case length > 30:
+//             return 'an expert';
+//         case length > 20:
+//             return 'a seasoned'
+//         case length > 10:
+//             return 'an intermediate'
+//         default:
+//             return 'a beginner';
+//     }
+// }
 
 const Grid = () => {
     const [gameOver, setGameOver] = useState(false);
